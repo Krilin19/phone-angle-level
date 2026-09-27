@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phone Angle Recorder</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            text-align: center;
+            padding: 20px;
+            background-color: #f4f4f9;
+            color: #333;
+        }
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 10px 0;
+            width: 100%;
+        }
+        button:hover { background-color: #0056b3; }
+        .data-box {
+            font-size: 18px;
+            margin: 20px 0;
+            text-align: left;
+            background: #eee;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: monospace;
+        }
+        #recordBtn { background-color: #28a745; display: none; }
+        #recordBtn.recording { background-color: #dc3545; }
+        #log {
+            max-height: 150px;
+            overflow-y: auto;
+            text-align: left;
+            font-size: 12px;
+            background: #222;
+            color: #0f0;
+            padding: 10px;
+            border-radius: 6px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Angle & Level Recorder</h2>
+    <p>Web apps require explicit permission to access device motion sensors.</p>
+    
+    <button id="permissionBtn">1. Enable Sensors</button>
+    <button id="recordBtn">2. Start Recording</button>
+
+    <div class="data-box">
+        <div>Pitch (Front/Back) <b id="beta">0</b>°</div>
+        <div>Roll (Left/Right) <b id="gamma">0</b>°</div>
+    </div>
+
+    <h3>Recorded Data Log</h3>
+    <div id="log">No data recorded yet.</div>
+</div>
+
+<script>
+    const permissionBtn = document.getElementById('permissionBtn');
+    const recordBtn = document.getElementById('recordBtn');
+    const betaEl = document.getElementById('beta');
+    const gammaEl = document.getElementById('gamma');
+    const logEl = document.getElementById('log');
+
+    let currentBeta = 0;
+    let currentGamma = 0;
+    let isRecording = false;
+    let recordInterval = null;
+    let recordedData = [];
+
+    // Request permissions for iOS 13+ devices
+    permissionBtn.addEventListener('click', async () => {
+        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+            try {
+                const permissionState = await DeviceOrientationEvent.requestPermission();
+                if (permissionState === 'granted') {
+                    initSensorListener();
+                } else {
+                    alert('Permission to access motion sensors was denied.');
+                }
+            } catch (error) {
+                console.error(error);
+                alert('Error requesting orientation permissions.');
+            }
+        } else {
+            // Android or older iOS devices don't require explicit popup permission
+            initSensorListener();
+        }
+    });
+
+    function initSensorListener() {
+        window.addEventListener('deviceorientation', handleOrientation);
+        permissionBtn.style.display = 'none'; // Hide permission button once active
+        recordBtn.style.display = 'block';   // Show record button
+    }
+
+    function handleOrientation(event) {
+        // beta: front-back tilt (-180 to 180)
+        // gamma: left-right tilt (-90 to 90)
+        currentBeta = event.beta ? event.beta.toFixed(1) : 0;
+        currentGamma = event.gamma ? event.gamma.toFixed(1) : 0;
+
+        betaEl.textContent = currentBeta;
+        gammaEl.textContent = currentGamma;
+    }
+
+    // Toggle recording states
+    recordBtn.addEventListener('click', () => {
+        if (!isRecording) {
+            isRecording = true;
+            recordBtn.textContent = 'Stop & Save';
+            recordBtn.classList.add('recording');
+            logEl.textContent = 'Recording started...\n';
+            recordedData = [];
+
+            // Record data snapshot every 200ms (5 times per second)
+            recordInterval = setInterval(() => {
+                const timestamp = new Date().toLocaleTimeString();
+                const logEntry = `[${timestamp}] Pitch: ${currentBeta}°, Roll: ${currentGamma}°`;
+                
+                recordedData.push({ time: timestamp, pitch: currentBeta, roll: currentGamma });
+                logEl.textContent += logEntry + '\n';
+                logEl.scrollTop = logEl.scrollHeight; // Auto-scroll to bottom
+            }, 200);
+
+        } else {
+            isRecording = false;
+            recordBtn.textContent = '2. Start Recording';
+            recordBtn.classList.remove('recording');
+            clearInterval(recordInterval);
+            
+            // Console log the array structure ready to send to your backend server
+            console.log('Final recorded data array:', recordedData);
+            alert(`Recording stopped. Logged ${recordedData.length} data points to console.`);
+        }
+    });
+</script>
+
+</body>
+</html>
